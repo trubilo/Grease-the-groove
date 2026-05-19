@@ -4,11 +4,14 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="theme-color" content="#07070e"/>
+  <link rel="manifest" href="data:application/json,%7B%22name%22%3A%22GTG+Pull+Tracker%22%2C%22short_name%22%3A%22GTG%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%2307070e%22%2C%22theme_color%22%3A%22%2307070e%22%7D"/>
   <title>GTG Pull Tracker</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-    body { background: #07070e; color: #f0f0f0; font-family: 'Courier New', monospace; overscroll-behavior: none; }
+    body { background: #07070e; color: #f0f0f0; font-family: 'Courier New', monospace; overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
     input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }
     input[type=number] { -moz-appearance: textfield; }
     ::-webkit-scrollbar { display: none; }
@@ -661,7 +664,7 @@ function BarChart({
   }, /*#__PURE__*/React.createElement("tbody", null, /*#__PURE__*/React.createElement("tr", {
     style: {
       verticalAlign: "bottom",
-      height: `${BAR_H}px`
+      height: `${BAR_H + 20}px`
     }
   }, data.map(function (d, i) {
     var total = vals[i];
@@ -672,25 +675,24 @@ function BarChart({
       style: {
         verticalAlign: "bottom",
         padding: 0,
-        height: `${BAR_H}px`
+        height: `${BAR_H + 20}px`
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
+        height: "18px",
         display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "flex-end",
-        height: `${BAR_H}px`
+        alignItems: "flex-end",
+        justifyContent: "center",
+        marginBottom: "2px"
       }
     }, total > 0 && /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: "11px",
         color: isToday ? "#fff" : "#bbb",
         fontWeight: "900",
-        marginBottom: "2px",
         lineHeight: "1"
       }
-    }, total), total === 0 ? /*#__PURE__*/React.createElement("div", {
+    }, total)), total === 0 ? /*#__PURE__*/React.createElement("div", {
       style: {
         width: "100%",
         height: "2px",
@@ -722,7 +724,7 @@ function BarChart({
         background: isToday ? colorFn(d, i) : colorFn(d, i) + "77",
         borderRadius: "3px 3px 0 0"
       }
-    })));
+    }));
   })), /*#__PURE__*/React.createElement("tr", null, data.map(function (d, i) {
     var isToday = d.date === today;
     var showLabel = labelEvery === 1 || i % labelEvery === 0 || isToday;
