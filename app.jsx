@@ -883,30 +883,45 @@ function App() {
           </div>
 
           {/* Energy equivalents */}
-          <div style={{background:"#0c0c1c",borderRadius:"14px",padding:"16px",border:"1px solid #1a1a2a"}}>
-            <div style={{fontSize:"14px",color:"#ccc",letterSpacing:"3px",marginBottom:"14px"}}>ENERGY EQUIVALENTS</div>
-            {[
-              {label:"Boil 1L of water",   metabolicJ:857000, emoji:"☕", note:"150kJ ÷ 25% efficiency"},
-              {label:"iPhone full charge",  metabolicJ:280000, emoji:"📱", note:"14Wh ÷ 25% efficiency"},
-              {label:"LED bulb for 1 hour", metabolicJ:206000, emoji:"💡", note:"10W × 3600s ÷ 25%"},
-              {label:"Burn a Mars bar",     metabolicJ:1046000,emoji:"🍫", note:"250 kcal × 4184 J/kcal"},
-            ].map(e=>{
-              const repsNeeded=Math.round(e.metabolicJ/metabolicJPerRep);
-              return (
-                <div key={e.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-                  padding:"9px 0",borderBottom:"1px solid #111"}}>
-                  <div style={{fontSize:"13px",color:"#ccc"}}>{e.emoji} {e.label}</div>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:"13px",fontWeight:"900",color:"#00E5FF"}}>{repsNeeded} pulls</div>
-                    <div style={{fontSize:"11px",color:"#555"}}>{e.note}</div>
+          {(function(){
+            var totalMetabolicJ = (allJoules + pushAllJoules) / 0.25;
+            return (
+            <div style={{background:"#0c0c1c",borderRadius:"14px",padding:"16px",border:"1px solid #1a1a2a"}}>
+              <div style={{fontSize:"14px",color:"#ccc",letterSpacing:"3px",marginBottom:"14px"}}>ENERGY EQUIVALENTS</div>
+              {[
+                {label:"Boil 1L of water",   metabolicJ:857000, emoji:"☕", note:"150kJ ÷ 25% efficiency"},
+                {label:"iPhone full charge",  metabolicJ:280000, emoji:"📱", note:"14Wh ÷ 25% efficiency"},
+                {label:"LED bulb for 1 hour", metabolicJ:206000, emoji:"💡", note:"10W × 3600s ÷ 25%"},
+                {label:"Burn a Mars bar",     metabolicJ:1046000,emoji:"🍫", note:"250 kcal × 4184 J/kcal"},
+              ].map(e=>{
+                const repsNeeded = Math.round(e.metabolicJ/metabolicJPerRep);
+                const times = totalMetabolicJ / e.metabolicJ;
+                const timesStr = times >= 1
+                  ? (Number.isInteger(Math.round(times*10)/10) ? Math.round(times) : (times).toFixed(1)) + "×"
+                  : Math.round(times*100) + "%";
+                const timesColor = times >= 1 ? "#39FF14" : "#555";
+                return (
+                  <div key={e.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                    padding:"9px 0",borderBottom:"1px solid #111"}}>
+                    <div>
+                      <div style={{fontSize:"13px",color:"#ccc"}}>{e.emoji} {e.label}</div>
+                      <div style={{fontSize:"11px",color:timesColor,marginTop:"2px",fontWeight:times>=1?"900":"400"}}>
+                        {timesStr} all time
+                      </div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:"13px",fontWeight:"900",color:"#00E5FF"}}>{repsNeeded} pulls</div>
+                      <div style={{fontSize:"11px",color:"#555"}}>{e.note}</div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-            <div style={{fontSize:"12px",color:"#666",marginTop:"12px",lineHeight:"1.6"}}>
-              {allReps} lifetime pulls + {pushAllReps} pushups = {Math.round((allJoules+pushAllJoules)/1000)} kJ total mechanical work.
+                );
+              })}
+              <div style={{fontSize:"12px",color:"#666",marginTop:"12px",lineHeight:"1.6"}}>
+                {allReps} lifetime pulls + {pushAllReps} pushups = {Math.round((allJoules+pushAllJoules)/1000)} kJ total mechanical work.
+              </div>
             </div>
-          </div>
+            );
+          })()}
         </div>
       )}
 

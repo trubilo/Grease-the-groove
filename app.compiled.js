@@ -2163,80 +2163,93 @@ function App() {
         transition: "width 0.5s"
       }
     })));
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: "#0c0c1c",
-      borderRadius: "14px",
-      padding: "16px",
-      border: "1px solid #1a1a2a"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: "14px",
-      color: "#ccc",
-      letterSpacing: "3px",
-      marginBottom: "14px"
-    }
-  }, "ENERGY EQUIVALENTS"), [{
-    label: "Boil 1L of water",
-    metabolicJ: 857000,
-    emoji: "☕",
-    note: "150kJ ÷ 25% efficiency"
-  }, {
-    label: "iPhone full charge",
-    metabolicJ: 280000,
-    emoji: "📱",
-    note: "14Wh ÷ 25% efficiency"
-  }, {
-    label: "LED bulb for 1 hour",
-    metabolicJ: 206000,
-    emoji: "💡",
-    note: "10W × 3600s ÷ 25%"
-  }, {
-    label: "Burn a Mars bar",
-    metabolicJ: 1046000,
-    emoji: "🍫",
-    note: "250 kcal × 4184 J/kcal"
-  }].map(e => {
-    const repsNeeded = Math.round(e.metabolicJ / metabolicJPerRep);
+  })), function () {
+    var totalMetabolicJ = (allJoules + pushAllJoules) / 0.25;
     return /*#__PURE__*/React.createElement("div", {
-      key: e.label,
       style: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        padding: "9px 0",
-        borderBottom: "1px solid #111"
+        background: "#0c0c1c",
+        borderRadius: "14px",
+        padding: "16px",
+        border: "1px solid #1a1a2a"
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        fontSize: "13px",
-        color: "#ccc"
+        fontSize: "14px",
+        color: "#ccc",
+        letterSpacing: "3px",
+        marginBottom: "14px"
       }
-    }, e.emoji, " ", e.label), /*#__PURE__*/React.createElement("div", {
+    }, "ENERGY EQUIVALENTS"), [{
+      label: "Boil 1L of water",
+      metabolicJ: 857000,
+      emoji: "☕",
+      note: "150kJ ÷ 25% efficiency"
+    }, {
+      label: "iPhone full charge",
+      metabolicJ: 280000,
+      emoji: "📱",
+      note: "14Wh ÷ 25% efficiency"
+    }, {
+      label: "LED bulb for 1 hour",
+      metabolicJ: 206000,
+      emoji: "💡",
+      note: "10W × 3600s ÷ 25%"
+    }, {
+      label: "Burn a Mars bar",
+      metabolicJ: 1046000,
+      emoji: "🍫",
+      note: "250 kcal × 4184 J/kcal"
+    }].map(e => {
+      const repsNeeded = Math.round(e.metabolicJ / metabolicJPerRep);
+      const times = totalMetabolicJ / e.metabolicJ;
+      const timesStr = times >= 1 ? (Number.isInteger(Math.round(times * 10) / 10) ? Math.round(times) : times.toFixed(1)) + "×" : Math.round(times * 100) + "%";
+      const timesColor = times >= 1 ? "#39FF14" : "#555";
+      return /*#__PURE__*/React.createElement("div", {
+        key: e.label,
+        style: {
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "9px 0",
+          borderBottom: "1px solid #111"
+        }
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: "13px",
+          color: "#ccc"
+        }
+      }, e.emoji, " ", e.label), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: "11px",
+          color: timesColor,
+          marginTop: "2px",
+          fontWeight: times >= 1 ? "900" : "400"
+        }
+      }, timesStr, " all time")), /*#__PURE__*/React.createElement("div", {
+        style: {
+          textAlign: "right"
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: "13px",
+          fontWeight: "900",
+          color: "#00E5FF"
+        }
+      }, repsNeeded, " pulls"), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: "11px",
+          color: "#555"
+        }
+      }, e.note)));
+    }), /*#__PURE__*/React.createElement("div", {
       style: {
-        textAlign: "right"
+        fontSize: "12px",
+        color: "#666",
+        marginTop: "12px",
+        lineHeight: "1.6"
       }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: "13px",
-        fontWeight: "900",
-        color: "#00E5FF"
-      }
-    }, repsNeeded, " pulls"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: "11px",
-        color: "#555"
-      }
-    }, e.note)));
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: "12px",
-      color: "#666",
-      marginTop: "12px",
-      lineHeight: "1.6"
-    }
-  }, allReps, " lifetime pulls + ", pushAllReps, " pushups = ", Math.round((allJoules + pushAllJoules) / 1000), " kJ total mechanical work."))), nav === "history" && /*#__PURE__*/React.createElement("div", {
+    }, allReps, " lifetime pulls + ", pushAllReps, " pushups = ", Math.round((allJoules + pushAllJoules) / 1000), " kJ total mechanical work."));
+  }()), nav === "history" && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "22px 16px 88px"
     }
