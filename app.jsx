@@ -21,7 +21,14 @@ const GRIPS = [
   { id: "chin",    label: "Chin-up", sub: "supinated · close handles",  color: "#FF4081" },
 ];
 
+const PUSH_TYPES = [
+  { id: "wide",     label: "Wide",     sub: "hands wide · chest focus",  color: "#FF6B6B" },
+  { id: "standard", label: "Standard", sub: "shoulder-width · balanced", color: "#FBBF24" },
+  { id: "diamond",  label: "Diamond",  sub: "hands close · triceps",     color: "#A78BFA" },
+];
+
 const WEEK_GOAL_START = 100;
+const PUSH_GOAL_START = 150;
 
 // All date functions use LOCAL time to avoid UTC timezone shift bugs
 function localDateStr(d) {
@@ -140,18 +147,16 @@ function safeGrip(d, gid) {
   return (d && d.grips && d.grips[gid]) ? d.grips[gid] : 0;
 }
 
-function BarChart({data, colorFn, labelFn, valueFn, height, goal, stacked, labelEvery}) {
+function BarChart({data, colorFn, labelFn, valueFn, height, goal, stacked, labelEvery, types}) {
   var BAR_H = height || 80;
   labelEvery = labelEvery || 1;
-  var LABEL_H = 36;
+  var chartTypes = types || GRIPS;
   var today = todayStr();
   var vals = data.map(function(d) {
-    return stacked ? GRIPS.reduce(function(a,g){return a+safeGrip(d,g.id);},0) : valueFn(d);
+    return stacked ? chartTypes.reduce(function(a,g){return a+safeGrip(d,g.id);},0) : valueFn(d);
   });
   var max = Math.max.apply(null, vals.concat([goal||0, 1]));
-  var n = data.length;
   var gap = 4;
-  // Use table-based layout: each column is a <td> with explicit pixel height
   return (
     <div>
       <table style={{width:"100%",borderCollapse:"separate",borderSpacing:`${gap}px 0`,tableLayout:"fixed"}}>
@@ -163,16 +168,14 @@ function BarChart({data, colorFn, labelFn, valueFn, height, goal, stacked, label
               var isToday = d.date === today;
               return (
                 <td key={i} style={{verticalAlign:"bottom",padding:0,height:`${BAR_H+20}px`}}>
-                  {/* Label sits above bar in its own fixed space */}
                   <div style={{height:"18px",display:"flex",alignItems:"flex-end",justifyContent:"center",marginBottom:"2px"}}>
                     {total>0 && <div style={{fontSize:"11px",color:isToday?"#fff":"#bbb",fontWeight:"900",lineHeight:"1"}}>{total}</div>}
                   </div>
-                  {/* Bar at exact pixel height */}
                   {total===0 ? (
                     <div style={{width:"100%",height:"2px",background:"#1e1e2e"}}/>
                   ) : stacked ? (
                     <div style={{width:"100%",height:`${barH}px`,overflow:"hidden",borderRadius:"3px 3px 0 0"}}>
-                      {[...GRIPS].reverse().map(function(g) {
+                      {[...chartTypes].reverse().map(function(g) {
                         var r = safeGrip(d, g.id);
                         if(!r) return null;
                         var sh = Math.max(1, Math.round((r/total)*barH));
@@ -207,10 +210,9 @@ function BarChart({data, colorFn, labelFn, valueFn, height, goal, stacked, label
   );
 }
 
-// ─── EDIT LOG MODAL (past entries) ──────────────────────────────────────────────
-function EditLogModal({date, existing, onClose, onSave, onDelete}) {
+// ─── GENERIC EDIT LOG MODAL ──────────────────────────────────────────────────
+function EditLogModal({date, existing, types, accentColor, onClose, onSave, onDelete}) {
   const [reps, setReps] = useState({...existing});
-  const total = GRIPS.reduce((a,g)=>a+(reps[g.id]||0),0);
   const inp = {
     textAlign:"center", background:"#0a0a18", border:"1px solid #2a2a40",
     borderRadius:"8px", color:"#f0f0f0", fontSize:"22px", fontWeight:"900",
@@ -223,13 +225,13 @@ function EditLogModal({date, existing, onClose, onSave, onDelete}) {
       <div onClick={e=>e.stopPropagation()} style={{background:"#0e0e1e",borderRadius:"24px 24px 0 0",
         padding:"24px 20px 44px",width:"100%",border:"1px solid #1e1e32"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"6px"}}>
-          <span style={{fontSize:"14px",fontWeight:"900",color:"#BF5FFF",letterSpacing:"2px"}}>EDIT</span>
+          <span style={{fontSize:"14px",fontWeight:"900",color:accentColor||"#BF5FFF",letterSpacing:"2px"}}>EDIT</span>
           <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#888"}}>
             <Icon name="x" size={22}/>
           </button>
         </div>
         <div style={{fontSize:"13px",color:"#888",marginBottom:"18px"}}>{date}</div>
-        {GRIPS.map(g=>{
+        {types.map(g=>{
           const r = reps[g.id]||0;
           return (
             <div key={g.id} style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
@@ -253,7 +255,7 @@ function EditLogModal({date, existing, onClose, onSave, onDelete}) {
         })}
         <div style={{display:"flex",gap:"8px",marginTop:"10px"}}>
           <button onClick={()=>onSave(reps)} style={{flex:1,padding:"13px",
-            background:"linear-gradient(135deg,#BF5FFF,#7B2FFF)",border:"none",
+            background:`linear-gradient(135deg,${accentColor||"#BF5FFF"},${accentColor||"#7B2FFF"})`,border:"none",
             borderRadius:"10px",color:"#fff",fontWeight:"900",fontSize:"14px",
             letterSpacing:"2px",cursor:"pointer",fontFamily:"'Courier New',monospace"}}>SAVE</button>
           <button onClick={onDelete} style={{padding:"13px 16px",background:"transparent",
@@ -266,8 +268,9 @@ function EditLogModal({date, existing, onClose, onSave, onDelete}) {
 }
 
 // ─── GOAL MODAL ───────────────────────────────────────────────────────────────
-function GoalModal({currentGoal, currentWeight, onClose, onSave}) {
+function GoalModal({currentGoal, currentPushGoal, currentWeight, onClose, onSave}) {
   const [goal, setGoal] = useState(String(currentGoal));
+  const [pushGoal, setPushGoal] = useState(String(currentPushGoal));
   const [weight, setWeight] = useState(String(currentWeight));
   const inp = {background:"#0f0f22",border:"1px solid #2a2a40",borderRadius:"10px",
     color:"#f0f0f0",padding:"12px",fontSize:"22px",textAlign:"center",
@@ -289,12 +292,17 @@ function GoalModal({currentGoal, currentWeight, onClose, onSave}) {
           style={{...inp, marginBottom:"6px"}}/>
         <div style={{fontSize:"12px",color:"#666",marginBottom:"18px"}}>Used for tonnage and energy calculations</div>
 
-        <div style={{fontSize:"11px",color:"#FF9500",letterSpacing:"3px",marginBottom:"6px"}}>WEEKLY REP GOAL</div>
+        <div style={{fontSize:"11px",color:"#00E5FF",letterSpacing:"3px",marginBottom:"6px"}}>WEEKLY PULL GOAL</div>
         <input type="number" value={goal} onChange={function(e){setGoal(e.target.value);}}
           style={{...inp, marginBottom:"6px"}}/>
-        <div style={{fontSize:"12px",color:"#666",marginBottom:"18px"}}>Total reps across all grips. Increase ~20% every 4 weeks.</div>
+        <div style={{fontSize:"12px",color:"#666",marginBottom:"18px"}}>Pull-up reps across all grips. Increase ~20% every 4 weeks.</div>
 
-        <button onClick={function(){onSave(Number(goal)||currentGoal, Number(weight)||currentWeight);}}
+        <div style={{fontSize:"11px",color:"#FF6B6B",letterSpacing:"3px",marginBottom:"6px"}}>WEEKLY PUSH GOAL</div>
+        <input type="number" value={pushGoal} onChange={function(e){setPushGoal(e.target.value);}}
+          style={{...inp, marginBottom:"6px"}}/>
+        <div style={{fontSize:"12px",color:"#666",marginBottom:"18px"}}>Pushup reps across all types. Increase ~20% every 4 weeks.</div>
+
+        <button onClick={function(){onSave(Number(goal)||currentGoal, Number(pushGoal)||currentPushGoal, Number(weight)||currentWeight);}}
           style={{width:"100%",padding:"14px",background:"linear-gradient(135deg,#FF9500,#cc7700)",
             border:"none",borderRadius:"12px",color:"#000",fontWeight:"900",fontSize:"15px",
             letterSpacing:"2px",cursor:"pointer",fontFamily:"'Courier New',monospace"}}>
@@ -305,26 +313,103 @@ function GoalModal({currentGoal, currentWeight, onClose, onSave}) {
   );
 }
 
+// ─── INLINE LOGGER ────────────────────────────────────────────────────────────
+function InlineLogger({title, types, todayLog, isDirty, onSetVal, onSave, onCancel, dirtyColor}) {
+  const totalReps = types.reduce((a,g)=>a+(todayLog[g.id]||0),0);
+  const inp = {flex:1,textAlign:"center",background:"#0a0a18",borderRadius:"8px",
+    color:"#888",fontSize:"22px",fontWeight:"900",padding:"6px 4px",
+    fontFamily:"'Courier New',monospace",outline:"none",minWidth:0};
+  return (
+    <div style={{background:"#0e0e1e",borderRadius:"12px",padding:"16px",
+      border:`1px solid ${isDirty?(dirtyColor||"#00E5FF")+"44":"#1a1a2a"}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+        <div style={{fontSize:"14px",color:"#ccc",letterSpacing:"3px"}}>{title}</div>
+        <div style={{fontSize:"20px",fontWeight:"900",color:"#f0f0f0"}}>{totalReps} reps</div>
+      </div>
+      {types.map(g=>{
+        const r = todayLog[g.id]||0;
+        return (
+          <div key={g.id} style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
+            <div style={{width:"72px",flexShrink:0}}>
+              <div style={{fontSize:"13px",fontWeight:"900",color:r>0?g.color:"#888"}}>{g.label}</div>
+            </div>
+            <button onClick={()=>onSetVal(g.id,r-1)}
+              style={{width:"38px",height:"38px",borderRadius:"8px",border:`1px solid ${r>0?g.color+"55":"#252530"}`,
+                background:"transparent",color:r>0?g.color:"#555",fontSize:"20px",fontWeight:"900",
+                cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              −
+            </button>
+            <input type="number" value={r===0?"":r} placeholder="0"
+              onChange={e=>onSetVal(g.id,parseInt(e.target.value)||0)}
+              style={{...inp,border:`1px solid ${r>0?g.color+"55":"#252530"}`,color:r>0?g.color:"#888"}}/>
+            <button onClick={()=>onSetVal(g.id,r+1)}
+              style={{width:"38px",height:"38px",borderRadius:"8px",border:`1px solid ${g.color+"55"}`,
+                background:g.color+"15",color:g.color,fontSize:"16px",fontWeight:"900",
+                cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              +1
+            </button>
+            <button onClick={()=>onSetVal(g.id,r+5)}
+              style={{width:"38px",height:"38px",borderRadius:"8px",border:`1px solid ${g.color+"55"}`,
+                background:g.color+"25",color:g.color,fontSize:"14px",fontWeight:"900",
+                cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              +5
+            </button>
+            <button onClick={()=>onSetVal(g.id,0)}
+              style={{width:"28px",height:"28px",borderRadius:"6px",border:"1px solid #2a2a3a",
+                background:"transparent",color:r>0?"#888":"#252530",fontSize:"14px",
+                cursor:r>0?"pointer":"default",display:"flex",alignItems:"center",
+                justifyContent:"center",flexShrink:0,transition:"color 0.15s"}}>
+              ×
+            </button>
+          </div>
+        );
+      })}
+      <div style={{display:"flex",gap:"8px",marginTop:"6px"}}>
+        <button onClick={onSave}
+          style={{flex:1,padding:"12px",
+            background:isDirty?`linear-gradient(135deg,${dirtyColor||"#00E5FF"},${dirtyColor||"#0077aa"})`:"#1a1a2a",
+            border:"none",borderRadius:"10px",color:isDirty?"#000":"#444",fontWeight:"900",
+            fontSize:"14px",letterSpacing:"2px",cursor:isDirty?"pointer":"default",
+            fontFamily:"'Courier New',monospace",transition:"all 0.2s"}}>
+          {isDirty ? "SAVE" : "SAVED ✓"}
+        </button>
+        {isDirty && <button onClick={onCancel}
+          style={{padding:"12px 16px",background:"transparent",border:"1px solid #2a2a3a",
+            borderRadius:"10px",color:"#666",fontSize:"14px",cursor:"pointer",
+            fontFamily:"'Courier New',monospace"}}>
+          CANCEL
+        </button>}
+      </div>
+    </div>
+  );
+}
+
 // ─── APP ─────────────────────────────────────────────────────────────────────
 function App() {
-  // logs: { "2024-01-15": { narrow:5, wide:3, neutral:0, chin:10 }, ... }
-  const [logs, setLogs]       = useState({});
+  const [logs, setLogs]         = useState({});
+  const [pushLogs, setPushLogs] = useState({});
   const [weekGoal, setWeekGoal] = useState(WEEK_GOAL_START);
+  const [pushGoal, setPushGoal] = useState(PUSH_GOAL_START);
   const [bodyweight, setBodyweight] = useState(105);
-  const [nav, setNav]         = useState("today");
+  const [nav, setNav]           = useState("today");
   const [showGoal, setShowGoal] = useState(false);
-  const [chartScale, setChartScale] = useState("week"); // week | month | alltime
+  const [chartScale, setChartScale] = useState("week");
+  const [pushChartScale, setPushChartScale] = useState("week");
   const [editDate, setEditDate] = useState(null);
-  // Draft: unsaved inline edits for today
-  const [draft, setDraft] = useState(null); // null = not editing, obj = {narrow,wide,neutral,chin}
+  const [editPushDate, setEditPushDate] = useState(null);
+  const [draft, setDraft]       = useState(null);
+  const [pushDraft, setPushDraft] = useState(null);
   const isDirty = draft !== null;
+  const isPushDirty = pushDraft !== null;
   const initialized = React.useRef(false);
 
   useEffect(()=>{
     const s=loadStorage();
     if(s){
       if(s.logs)     setLogs(s.logs);
+      if(s.pushLogs) setPushLogs(s.pushLogs);
       if(s.weekGoal) setWeekGoal(s.weekGoal);
+      if(s.pushGoal) setPushGoal(s.pushGoal);
       if(s.bodyweight) { setBodyweight(s.bodyweight); BODYWEIGHT_KG=s.bodyweight; }
     }
     initialized.current = true;
@@ -332,46 +417,54 @@ function App() {
 
   useEffect(()=>{
     if(!initialized.current) return;
-    saveStorage({logs,weekGoal,bodyweight});
-  },[logs,weekGoal,bodyweight]);
-  // Keep global in sync for energy calcs
+    saveStorage({logs,pushLogs,weekGoal,pushGoal,bodyweight});
+  },[logs,pushLogs,weekGoal,pushGoal,bodyweight]);
+
   BODYWEIGHT_KG = bodyweight;
 
   const today = todayStr();
+
+  // ── Pull draft ──
   const savedLog = logs[today] || {narrow:0,wide:0,neutral:0,chin:0};
   const todayLog = draft !== null ? draft : savedLog;
   const todayReps = GRIPS.reduce((a,g)=>a+(todayLog[g.id]||0),0);
-
-  const saveDraft = () => {
-    if (draft !== null) {
-      setLogs(prev => ({...prev, [today]: {...draft}}));
-      setDraft(null);
-    }
-  };
+  const saveDraft = () => { if(draft!==null){setLogs(prev=>({...prev,[today]:{...draft}}));setDraft(null);} };
   const cancelDraft = () => setDraft(null);
-  // Single setState - initialises from savedLog if draft is null
-  const setGripVal = (id, val) => {
-    setDraft(prev => ({...(prev !== null ? prev : savedLog), [id]: Math.max(0, val)}));
-  };
+  const setGripVal = (id,val) => setDraft(prev=>({...(prev!==null?prev:savedLog),[id]:Math.max(0,val)}));
 
-  // Week stats
-  const weekStart = getWeekStart(today);
-  const weekReps = useMemo(()=>{
-    return Object.entries(logs)
-      .filter(([d])=>getWeekStart(d)===weekStart)
-      .reduce((a,[,v])=>a+GRIPS.reduce((b,g)=>b+(v[g.id]||0),0),0);
-  },[logs,weekStart]);
+  // ── Push draft ──
+  const savedPushLog = pushLogs[today] || {wide:0,standard:0,diamond:0};
+  const todayPushLog = pushDraft !== null ? pushDraft : savedPushLog;
+  const savePushDraft = () => { if(pushDraft!==null){setPushLogs(prev=>({...prev,[today]:{...pushDraft}}));setPushDraft(null);} };
+  const cancelPushDraft = () => setPushDraft(null);
+  const setPushGripVal = (id,val) => setPushDraft(prev=>({...(prev!==null?prev:savedPushLog),[id]:Math.max(0,val)}));
 
-  const weekTonnage = weekReps * bodyweight;
+  // ── Energy constants (bodyweight-dependent) ──
   const joulesPerRep = bodyweight * 9.81 * 0.5;
   const metabolicJPerRep = joulesPerRep / 0.25;
   const kcalPerRep = metabolicJPerRep / 4184;
-  const weekJoules  = weekReps * joulesPerRep;
-  const weekKjoules = weekJoules / 1000;
-  const weekKcal    = weekReps * kcalPerRep;
-  const weekPct     = weekGoal ? weekReps / weekGoal : 0;
 
-  // All-time
+  // ── Pull week stats ──
+  const weekStart = getWeekStart(today);
+  const weekReps = useMemo(()=>
+    Object.entries(logs)
+      .filter(([d])=>getWeekStart(d)===weekStart)
+      .reduce((a,[,v])=>a+GRIPS.reduce((b,g)=>b+(v[g.id]||0),0),0)
+  ,[logs,weekStart]);
+  const weekPct = weekGoal ? weekReps/weekGoal : 0;
+  const weekTonnage  = weekReps * bodyweight;
+  const weekKjoules  = weekReps * joulesPerRep / 1000;
+  const weekKcal     = weekReps * kcalPerRep;
+
+  // ── Push week stats ──
+  const pushWeekReps = useMemo(()=>
+    Object.entries(pushLogs)
+      .filter(([d])=>getWeekStart(d)===weekStart)
+      .reduce((a,[,v])=>a+PUSH_TYPES.reduce((b,g)=>b+(v[g.id]||0),0),0)
+  ,[pushLogs,weekStart]);
+  const pushWeekPct = pushGoal ? pushWeekReps/pushGoal : 0;
+
+  // ── Pull all-time ──
   const allReps = useMemo(()=>
     Object.values(logs).reduce((a,v)=>a+GRIPS.reduce((b,g)=>b+(v[g.id]||0),0),0)
   ,[logs]);
@@ -379,77 +472,84 @@ function App() {
   const allJoules  = allReps * joulesPerRep;
   const allKcal    = allReps * kcalPerRep;
 
-  // Last 7 days data
+  // ── Push all-time ──
+  const pushAllReps = useMemo(()=>
+    Object.values(pushLogs).reduce((a,v)=>a+PUSH_TYPES.reduce((b,g)=>b+(v[g.id]||0),0),0)
+  ,[pushLogs]);
+  const pushAllTonnage = pushAllReps * bodyweight;
+  const pushAllJoules  = pushAllReps * joulesPerRep;
+  const pushAllKcal    = pushAllReps * kcalPerRep;
+
+  // ── Pull chart data ──
   const last7 = getLast7Days().map(function(d) {
     const entry = logs[d] || {};
-    return {
-      date: d,
-      reps: GRIPS.reduce(function(a,g){return a+((entry[g.id])||0);},0),
-      grips: {
-        narrow:  entry.narrow  || 0,
-        wide:    entry.wide    || 0,
-        neutral: entry.neutral || 0,
-        chin:    entry.chin    || 0,
-      },
-    };
+    return { date:d, reps:GRIPS.reduce((a,g)=>a+(entry[g.id]||0),0),
+      grips:{narrow:entry.narrow||0,wide:entry.wide||0,neutral:entry.neutral||0,chin:entry.chin||0} };
   });
-
-  // Last 8 weeks data
-  const last8weeks = useMemo(()=>{
-    const weeks = getLast8Weeks();
-    return weeks.map(function(ws) {
-      return {
-        weekStart: ws,
-        reps: Object.entries(logs)
-          .filter(function(pair){return getWeekStart(pair[0])===ws;})
-          .reduce(function(a,pair){return a+GRIPS.reduce(function(b,g){return b+(pair[1][g.id]||0);},0);},0),
-      };
-    });
-  },[logs]);
-
-  // All-time weekly data from first log entry onwards
+  const last8weeks = useMemo(()=>getLast8Weeks().map(ws=>({
+    weekStart:ws,
+    reps:Object.entries(logs).filter(([d])=>getWeekStart(d)===ws)
+      .reduce((a,[,v])=>a+GRIPS.reduce((b,g)=>b+(v[g.id]||0),0),0),
+  })),[logs]);
   const allTimeWeeks = useMemo(()=>{
-    var allDates = Object.keys(logs).sort();
+    var allDates=Object.keys(logs).sort();
     if(allDates.length===0) return last8weeks;
-    var firstWeek = getWeekStart(allDates[0]);
-    var todayW = localDateStr(new Date());
-    var weeks = [];
-    var cur = new Date(firstWeek);
-    while(localDateStr(cur) <= todayW) {
-      var ws = localDateStr(cur);
-      weeks.push({
-        weekStart: ws,
-        reps: Object.entries(logs)
-          .filter(function(p){return getWeekStart(p[0])===ws;})
-          .reduce(function(a,p){return a+GRIPS.reduce(function(b,g){return b+(p[1][g.id]||0);},0);},0),
-      });
+    var cur=new Date(getWeekStart(allDates[0])), todayW=localDateStr(new Date()), weeks=[];
+    while(localDateStr(cur)<=todayW){
+      var ws=localDateStr(cur);
+      weeks.push({weekStart:ws,reps:Object.entries(logs).filter(([d])=>getWeekStart(d)===ws)
+        .reduce((a,[,v])=>a+GRIPS.reduce((b,g)=>b+(v[g.id]||0),0),0)});
       cur.setDate(cur.getDate()+7);
     }
     return weeks;
   },[logs]);
 
-  // Grip breakdown this week
+  // ── Push chart data ──
+  const pushLast7 = getLast7Days().map(function(d) {
+    const entry = pushLogs[d] || {};
+    return { date:d, reps:PUSH_TYPES.reduce((a,g)=>a+(entry[g.id]||0),0),
+      grips:{wide:entry.wide||0,standard:entry.standard||0,diamond:entry.diamond||0} };
+  });
+  const pushLast8weeks = useMemo(()=>getLast8Weeks().map(ws=>({
+    weekStart:ws,
+    reps:Object.entries(pushLogs).filter(([d])=>getWeekStart(d)===ws)
+      .reduce((a,[,v])=>a+PUSH_TYPES.reduce((b,g)=>b+(v[g.id]||0),0),0),
+  })),[pushLogs]);
+  const pushAllTimeWeeks = useMemo(()=>{
+    var allDates=Object.keys(pushLogs).sort();
+    if(allDates.length===0) return pushLast8weeks;
+    var cur=new Date(getWeekStart(allDates[0])), todayW=localDateStr(new Date()), weeks=[];
+    while(localDateStr(cur)<=todayW){
+      var ws=localDateStr(cur);
+      weeks.push({weekStart:ws,reps:Object.entries(pushLogs).filter(([d])=>getWeekStart(d)===ws)
+        .reduce((a,[,v])=>a+PUSH_TYPES.reduce((b,g)=>b+(v[g.id]||0),0),0)});
+      cur.setDate(cur.getDate()+7);
+    }
+    return weeks;
+  },[pushLogs]);
+
+  // ── Grip/type breakdowns ──
   const weekGripReps = useMemo(()=>{
-    const totals = {narrow:0,wide:0,neutral:0,chin:0};
-    Object.entries(logs)
-      .filter(([d])=>getWeekStart(d)===weekStart)
-      .forEach(([,v])=>GRIPS.forEach(g=>{ totals[g.id]+=(v[g.id]||0); }));
-    return totals;
+    const t={narrow:0,wide:0,neutral:0,chin:0};
+    Object.entries(logs).filter(([d])=>getWeekStart(d)===weekStart)
+      .forEach(([,v])=>GRIPS.forEach(g=>{t[g.id]+=(v[g.id]||0);}));
+    return t;
   },[logs,weekStart]);
+  const pushWeekTypeReps = useMemo(()=>{
+    const t={wide:0,standard:0,diamond:0};
+    Object.entries(pushLogs).filter(([d])=>getWeekStart(d)===weekStart)
+      .forEach(([,v])=>PUSH_TYPES.forEach(g=>{t[g.id]+=(v[g.id]||0);}));
+    return t;
+  },[pushLogs,weekStart]);
 
-  const saveLog = (date, reps) => {
-    setLogs(prev=>({...prev,[date]:reps}));
-    setEditDate(null);
-  };
+  // ── History (combined pull+push dates) ──
+  const historyDates = useMemo(()=>{
+    const all = new Set([...Object.keys(logs),...Object.keys(pushLogs)]);
+    return [...all].sort((a,b)=>b.localeCompare(a));
+  },[logs,pushLogs]);
 
-  const deleteLog = (date) => {
-    setLogs(prev=>{ const n={...prev}; delete n[date]; return n; });
-  };
-
-  // Sorted history
-  const historyDates = useMemo(()=>
-    Object.keys(logs).sort((a,b)=>b.localeCompare(a))
-  ,[logs]);
+  const deleteLog     = (date)=>{setLogs(prev=>{const n={...prev};delete n[date];return n;});};
+  const deletePushLog = (date)=>{setPushLogs(prev=>{const n={...prev};delete n[date];return n;});};
 
   const NAV=[
     {id:"today",  icon:"flame",  label:"TODAY"},
@@ -464,18 +564,16 @@ function App() {
       {/* ── TODAY ── */}
       {nav==="today" && (
         <div style={{paddingBottom:"80px"}}>
-
-          {/* Header */}
           <div style={{padding:"24px 20px 20px",background:"linear-gradient(180deg,#0c0c1e,#07070e)"}}>
-            <div style={{fontSize:"14px",letterSpacing:"5px",color:"#aaa",marginBottom:"6px"}}>GTG PULL TRACKER</div>
+            <div style={{fontSize:"14px",letterSpacing:"5px",color:"#aaa",marginBottom:"6px"}}>GTG TRACKER</div>
             <div style={{fontSize:"15px",color:"#ddd",marginBottom:"20px"}}>
               {new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})}
             </div>
 
-            {/* Weekly goal progress */}
+            {/* Dual weekly goals */}
             <div style={{marginBottom:"16px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
-                <div style={{fontSize:"13px",color:"#ccc",letterSpacing:"3px"}}>WEEKLY GOAL</div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"10px"}}>
+                <div style={{fontSize:"13px",color:"#ccc",letterSpacing:"3px"}}>WEEKLY GOALS</div>
                 <button onClick={()=>setShowGoal(true)}
                   style={{background:"none",border:"1px solid #2a2a3a",borderRadius:"20px",
                     cursor:"pointer",color:"#888",fontSize:"11px",fontWeight:"900",
@@ -483,27 +581,30 @@ function App() {
                   ⚙ SETTINGS
                 </button>
               </div>
-              <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
-                <div style={{fontSize:"32px",fontWeight:"900",color:"#00E5FF",lineHeight:1}}>{weekReps}</div>
-                <div style={{flex:1}}>
-                  <div style={{height:"10px",background:"#1a1a2a",borderRadius:"5px",overflow:"hidden",marginBottom:"4px"}}>
-                    <div style={{
-                      width:`${Math.min(100,Math.round(weekPct*100))}%`,
-                      height:"100%",
-                      background:weekPct>=1?"#39FF14":"#00E5FF",
-                      borderRadius:"5px",
-                      transition:"width 0.5s"
-                    }}/>
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between"}}>
-                    <div style={{fontSize:"12px",color:"#888"}}>{Math.round(weekPct*100)}% of {weekGoal} reps</div>
-                    <div style={{fontSize:"12px",color:weekPct>=1?"#39FF14":"#555"}}>
-                      {weekPct>=1?"✓ DONE":weekGoal-weekReps+" to go"}
+              {[
+                {label:"PULLS", reps:weekReps, goal:weekGoal, pct:weekPct, color:"#00E5FF"},
+                {label:"PUSHES",reps:pushWeekReps,goal:pushGoal,pct:pushWeekPct,color:"#FF6B6B"},
+              ].map(function(row){
+                return (
+                  <div key={row.label} style={{marginBottom:"10px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"3px"}}>
+                      <div style={{fontSize:"11px",color:row.color,letterSpacing:"2px",width:"52px",flexShrink:0}}>{row.label}</div>
+                      <div style={{fontSize:"22px",fontWeight:"900",color:row.color,lineHeight:1,minWidth:"40px"}}>{row.reps}</div>
+                      <div style={{flex:1}}>
+                        <div style={{height:"8px",background:"#1a1a2a",borderRadius:"4px",overflow:"hidden"}}>
+                          <div style={{width:`${Math.min(100,Math.round(row.pct*100))}%`,height:"100%",
+                            background:row.pct>=1?"#39FF14":row.color,borderRadius:"4px",transition:"width 0.5s"}}/>
+                        </div>
+                      </div>
+                      <div style={{fontSize:"11px",color:row.pct>=1?"#39FF14":"#555",minWidth:"52px",textAlign:"right"}}>
+                        {row.pct>=1?"✓ DONE":row.goal-row.reps+" left"}
+                      </div>
                     </div>
+                    <div style={{paddingLeft:"102px",fontSize:"11px",color:"#555"}}>{Math.round(row.pct*100)}% of {row.goal} reps</div>
                   </div>
-                </div>
-              </div>
-              {/* Weekly energy row */}
+                );
+              })}
+              {/* Weekly pull energy */}
               <div style={{display:"flex",gap:"8px",marginTop:"10px"}}>
                 {[
                   {label:"TONNAGE",val:`${(weekTonnage/1000).toFixed(2)}t`,color:"#FF9500"},
@@ -519,118 +620,76 @@ function App() {
               </div>
             </div>
 
-            {/* Inline log section */}
-            <div style={{background:"#0e0e1e",borderRadius:"12px",padding:"16px",border:`1px solid ${isDirty?"#00E5FF44":"#1a1a2a"}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
-                <div style={{fontSize:"14px",color:"#ccc",letterSpacing:"3px"}}>TODAY</div>
-                <div style={{fontSize:"20px",fontWeight:"900",color:"#f0f0f0"}}>{todayReps} reps</div>
-              </div>
+            {/* Pull logger */}
+            <InlineLogger
+              title="PULL-UPS"
+              types={GRIPS}
+              todayLog={todayLog}
+              isDirty={isDirty}
+              onSetVal={setGripVal}
+              onSave={saveDraft}
+              onCancel={cancelDraft}
+              dirtyColor="#00E5FF"
+            />
 
-              {GRIPS.map(g=>{
-                const r = todayLog[g.id]||0;
-                return (
-                  <div key={g.id} style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
-                    {/* Grip label */}
-                    <div style={{width:"72px",flexShrink:0}}>
-                      <div style={{fontSize:"13px",fontWeight:"900",color:r>0?g.color:"#888"}}>{g.label}</div>
-                    </div>
-                    {/* − button */}
-                    <button onClick={()=>setGripVal(g.id, r-1)}
-                      style={{width:"38px",height:"38px",borderRadius:"8px",border:`1px solid ${r>0?g.color+"55":"#252530"}`,
-                        background:"transparent",color:r>0?g.color:"#555",fontSize:"20px",fontWeight:"900",
-                        cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                      −
-                    </button>
-                    {/* Number input */}
-                    <input
-                      type="number"
-                      value={r === 0 ? "" : r}
-                      placeholder="0"
-                      onChange={e => setGripVal(g.id, parseInt(e.target.value)||0)}
-                      style={{flex:1,textAlign:"center",background:"#0a0a18",border:`1px solid ${r>0?g.color+"55":"#252530"}`,
-                        borderRadius:"8px",color:r>0?g.color:"#888",fontSize:"22px",fontWeight:"900",
-                        padding:"6px 4px",fontFamily:"'Courier New',monospace",outline:"none",minWidth:0}}
-                    />
-                    {/* +1 */}
-                    <button onClick={()=>setGripVal(g.id, r+1)}
-                      style={{width:"38px",height:"38px",borderRadius:"8px",border:`1px solid ${g.color+"55"}`,
-                        background:g.color+"15",color:g.color,fontSize:"16px",fontWeight:"900",
-                        cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                      +1
-                    </button>
-                    {/* +5 */}
-                    <button onClick={()=>setGripVal(g.id, r+5)}
-                      style={{width:"38px",height:"38px",borderRadius:"8px",border:`1px solid ${g.color+"55"}`,
-                        background:g.color+"25",color:g.color,fontSize:"14px",fontWeight:"900",
-                        cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                      +5
-                    </button>
-                    {/* × clear - always shown, dimmed when 0 */}
-                    <button onClick={()=>setGripVal(g.id, 0)}
-                      style={{width:"28px",height:"28px",borderRadius:"6px",border:"1px solid #2a2a3a",
-                        background:"transparent",color:r>0?"#888":"#252530",fontSize:"14px",
-                        cursor:r>0?"pointer":"default",display:"flex",alignItems:"center",
-                        justifyContent:"center",flexShrink:0,transition:"color 0.15s"}}>
-                      ×
-                    </button>
-                  </div>
-                );
-              })}
-
-              {/* Save / Cancel */}
-              <div style={{display:"flex",gap:"8px",marginTop:"6px"}}>
-                <button onClick={saveDraft}
-                  style={{flex:1,padding:"12px",
-                    background:isDirty?"linear-gradient(135deg,#00E5FF,#0077aa)":"#1a1a2a",
-                    border:"none",borderRadius:"10px",color:isDirty?"#000":"#444",fontWeight:"900",
-                    fontSize:"14px",letterSpacing:"2px",cursor:isDirty?"pointer":"default",
-                    fontFamily:"'Courier New',monospace",transition:"all 0.2s"}}>
-                  {isDirty ? "SAVE" : "SAVED ✓"}
-                </button>
-                {isDirty && <button onClick={cancelDraft}
-                  style={{padding:"12px 16px",background:"transparent",border:"1px solid #2a2a3a",
-                    borderRadius:"10px",color:"#666",fontSize:"14px",cursor:"pointer",
-                    fontFamily:"'Courier New',monospace"}}>
-                  CANCEL
-                </button>}
-              </div>
+            {/* Push logger */}
+            <div style={{marginTop:"12px"}}>
+              <InlineLogger
+                title="PUSHUPS"
+                types={PUSH_TYPES}
+                todayLog={todayPushLog}
+                isDirty={isPushDirty}
+                onSetVal={setPushGripVal}
+                onSave={savePushDraft}
+                onCancel={cancelPushDraft}
+                dirtyColor="#FF6B6B"
+              />
             </div>
           </div>
 
-          {/* 7-day bar chart */}
+          {/* 7-day charts */}
           <div style={{padding:"0 16px"}}>
             <div style={{background:"#0c0c1c",borderRadius:"14px",padding:"16px",border:"1px solid #1a1a2a"}}>
               <div style={{fontSize:"14px",color:"#ccc",letterSpacing:"3px",marginBottom:"4px"}}>LAST 7 DAYS</div>
-              <div style={{fontSize:"14px",color:"#bbb",marginBottom:"12px"}}>reps per day</div>
-              <div style={{position:"relative"}}>
-                <BarChart
-                  data={last7}
-                  height={70}
-                  valueFn={d=>d.reps}
-                  labelFn={d=>formatDate(d.date)}
-                  colorFn={(d,i)=>d.date===today?"#00E5FF":"#00E5FF66"}
-                  stacked={true}
-                />
-              </div>
+              <div style={{fontSize:"12px",color:"#888",marginBottom:"8px",letterSpacing:"1px"}}>PULLS</div>
+              <BarChart data={last7} height={60} valueFn={d=>d.reps} labelFn={d=>formatDate(d.date)}
+                colorFn={(d)=>d.date===today?"#00E5FF":"#00E5FF66"} stacked={true} types={GRIPS}/>
+              <div style={{fontSize:"12px",color:"#888",marginBottom:"8px",marginTop:"12px",letterSpacing:"1px"}}>PUSHES</div>
+              <BarChart data={pushLast7} height={60} valueFn={d=>d.reps} labelFn={d=>formatDate(d.date)}
+                colorFn={(d)=>d.date===today?"#FF6B6B":"#FF6B6B66"} stacked={true} types={PUSH_TYPES}/>
             </div>
           </div>
 
-          {/* This week grip split */}
+          {/* This week breakdowns */}
           <div style={{padding:"16px"}}>
             <div style={{background:"#0c0c1c",borderRadius:"14px",padding:"16px",border:"1px solid #1a1a2a"}}>
-              <div style={{fontSize:"14px",color:"#ccc",letterSpacing:"3px",marginBottom:"14px"}}>THIS WEEK BY GRIP</div>
+              <div style={{fontSize:"14px",color:"#ccc",letterSpacing:"3px",marginBottom:"14px"}}>THIS WEEK BY TYPE</div>
+              <div style={{fontSize:"12px",color:"#888",marginBottom:"10px",letterSpacing:"1px"}}>PULL-UPS</div>
               {GRIPS.map(g=>{
-                const r = weekGripReps[g.id]||0;
-                const pct = weekReps>0 ? r/weekReps : 0;
+                const r=weekGripReps[g.id]||0, pct=weekReps>0?r/weekReps:0;
                 return (
-                  <div key={g.id} style={{marginBottom:"12px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:"5px"}}>
-                      <span style={{fontSize:"15px",fontWeight:"700",color:r>0?g.color:"#ccc"}}>{g.label}</span>
-                      <span style={{fontSize:"15px",color:r>0?g.color:"#bbb",fontWeight:"900"}}>{r} reps</span>
+                  <div key={g.id} style={{marginBottom:"10px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:"4px"}}>
+                      <span style={{fontSize:"13px",fontWeight:"700",color:r>0?g.color:"#ccc"}}>{g.label}</span>
+                      <span style={{fontSize:"13px",color:r>0?g.color:"#bbb",fontWeight:"900"}}>{r}</span>
                     </div>
-                    <div style={{height:"6px",background:"#1a1a2a",borderRadius:"3px",overflow:"hidden"}}>
-                      <div style={{width:`${pct*100}%`,height:"100%",background:g.color,
-                        borderRadius:"3px",transition:"width 0.5s ease"}}/>
+                    <div style={{height:"5px",background:"#1a1a2a",borderRadius:"3px",overflow:"hidden"}}>
+                      <div style={{width:`${pct*100}%`,height:"100%",background:g.color,borderRadius:"3px",transition:"width 0.5s"}}/>
+                    </div>
+                  </div>
+                );
+              })}
+              <div style={{fontSize:"12px",color:"#888",marginBottom:"10px",marginTop:"14px",letterSpacing:"1px"}}>PUSHUPS</div>
+              {PUSH_TYPES.map(g=>{
+                const r=pushWeekTypeReps[g.id]||0, pct=pushWeekReps>0?r/pushWeekReps:0;
+                return (
+                  <div key={g.id} style={{marginBottom:"10px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:"4px"}}>
+                      <span style={{fontSize:"13px",fontWeight:"700",color:r>0?g.color:"#ccc"}}>{g.label}</span>
+                      <span style={{fontSize:"13px",color:r>0?g.color:"#bbb",fontWeight:"900"}}>{r}</span>
+                    </div>
+                    <div style={{height:"5px",background:"#1a1a2a",borderRadius:"3px",overflow:"hidden"}}>
+                      <div style={{width:`${pct*100}%`,height:"100%",background:g.color,borderRadius:"3px",transition:"width 0.5s"}}/>
                     </div>
                   </div>
                 );
@@ -638,12 +697,12 @@ function App() {
             </div>
           </div>
 
-          {/* Energy today */}
+          {/* Energy today (pulls) */}
           <div style={{padding:"0 16px 8px"}}>
             <div style={{background:"#0c0c1c",borderRadius:"14px",padding:"16px",border:"1px solid #1a1a2a"}}>
               <div style={{fontSize:"14px",color:"#ccc",letterSpacing:"3px",marginBottom:"14px"}}>TODAY'S ENERGY</div>
               {todayReps === 0 ? (
-                <div style={{fontSize:"13px",color:"#555",textAlign:"center",padding:"8px 0"}}>Log reps to see energy output</div>
+                <div style={{fontSize:"13px",color:"#555",textAlign:"center",padding:"8px 0"}}>Log pull-ups to see energy output</div>
               ) : (
                 <>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"14px"}}>
@@ -652,7 +711,7 @@ function App() {
                       {label:"METABOLIC", val:`${Math.round(todayReps*metabolicJPerRep/1000)} kJ`,color:"#39FF14"},
                       {label:"TONNAGE",   val:`${(todayReps*bodyweight).toLocaleString()} kg`,color:"#FF9500"},
                       {label:"KCAL",      val:`${(todayReps*kcalPerRep).toFixed(1)}`,color:"#FF4081"},
-                    ].map(function(s) { return (
+                    ].map(function(s){ return (
                       <div key={s.label} style={{background:"#0a0a18",borderRadius:"8px",padding:"10px",textAlign:"center"}}>
                         <div style={{fontSize:"18px",fontWeight:"900",color:s.color}}>{s.val}</div>
                         <div style={{fontSize:"10px",color:"#666",letterSpacing:"1px",marginTop:"3px"}}>{s.label}</div>
@@ -660,7 +719,7 @@ function App() {
                     ); })}
                   </div>
                   <div style={{fontSize:"12px",color:"#555",marginBottom:"12px",lineHeight:"1.6",padding:"10px",background:"#0a0a18",borderRadius:"8px"}}>
-                    Muscles are ~25% efficient — 4J burned for every 1J of movement. The other 3J become heat. That's why metabolic cost = mechanical × 4.
+                    Muscles are ~25% efficient — 4J burned for every 1J of movement. The other 3J become heat.
                   </div>
                   {[
                     {label:"Boil 1L water",   metabolicJ:857000, emoji:"☕"},
@@ -668,8 +727,7 @@ function App() {
                     {label:"LED bulb 1 hour", metabolicJ:206000, emoji:"💡"},
                     {label:"Burn Mars bar",   metabolicJ:1046000,emoji:"🍫"},
                   ].map(function(e) {
-                    var todayJ = todayReps * metabolicJPerRep;
-                    var pct = Math.min(100, Math.round((todayJ/e.metabolicJ)*100));
+                    var todayJ=todayReps*metabolicJPerRep, pct=Math.min(100,Math.round((todayJ/e.metabolicJ)*100));
                     return (
                       <div key={e.label} style={{marginBottom:"10px"}}>
                         <div style={{display:"flex",justifyContent:"space-between",marginBottom:"4px"}}>
@@ -692,142 +750,146 @@ function App() {
       {/* ── STATS ── */}
       {nav==="stats" && (
         <div style={{padding:"22px 16px 88px"}}>
-          <div style={{fontSize:"14px",letterSpacing:"5px",color:"#aaa",marginBottom:"6px"}}>STATISTICS</div>
-          <div style={{fontSize:"24px",fontFamily:"Georgia,serif",fontWeight:"900",color:"#39FF14",marginBottom:"20px"}}>
-            All Time
-          </div>
 
-          {/* All-time stats */}
+          {/* ── PULL STATS ── */}
+          <div style={{fontSize:"14px",letterSpacing:"5px",color:"#aaa",marginBottom:"6px"}}>PULL-UPS</div>
+          <div style={{fontSize:"24px",fontFamily:"Georgia,serif",fontWeight:"900",color:"#39FF14",marginBottom:"16px"}}>All Time</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginBottom:"16px"}}>
             {[
-              {label:"TOTAL REPS",  val:allReps.toLocaleString(),                      color:"#00E5FF"},
-              {label:"TONNAGE",     val:`${(allTonnage/1000).toFixed(1)}t`,            color:"#FF9500"},
-              {label:"ENERGY",      val:`${Math.round(allJoules/1000)} kJ`,            color:"#39FF14"},
-              {label:"KCAL",        val:`${Math.round(allKcal)}`,                      color:"#FF4081"},
+              {label:"TOTAL REPS",val:allReps.toLocaleString(),           color:"#00E5FF"},
+              {label:"TONNAGE",   val:`${(allTonnage/1000).toFixed(1)}t`, color:"#FF9500"},
+              {label:"ENERGY",    val:`${Math.round(allJoules/1000)} kJ`, color:"#39FF14"},
+              {label:"KCAL",      val:`${Math.round(allKcal)}`,           color:"#FF4081"},
             ].map(s=>(
               <div key={s.label} style={{background:"#0c0c1c",borderRadius:"12px",padding:"16px",
                 border:`1px solid ${s.color}22`,textAlign:"center"}}>
                 <div style={{fontSize:"24px",fontWeight:"900",color:s.color,lineHeight:1}}>{s.val}</div>
-                <div style={{fontSize:"15px",color:"#ccc",letterSpacing:"1px",marginTop:"6px"}}>{s.label}</div>
+                <div style={{fontSize:"11px",color:"#ccc",letterSpacing:"1px",marginTop:"6px"}}>{s.label}</div>
               </div>
             ))}
           </div>
-
-          {/* Time scale chart */}
-          <div style={{background:"#0c0c1c",borderRadius:"14px",padding:"16px",
-            border:"1px solid #1a1a2a",marginBottom:"16px"}}>
-            {/* Toggle */}
+          <div style={{background:"#0c0c1c",borderRadius:"14px",padding:"16px",border:"1px solid #1a1a2a",marginBottom:"16px"}}>
             <div style={{display:"flex",gap:"6px",marginBottom:"14px"}}>
-              {[["week","WEEK"],["month","MONTH"],["alltime","ALL TIME"]].map(function(pair) {
-                var key=pair[0], label=pair[1];
-                var active = chartScale===key;
-                return (
-                  <button key={key} onClick={function(){setChartScale(key);}}
-                    style={{flex:1,padding:"7px 4px",background:active?"#FF9500":"transparent",
-                      border:`1px solid ${active?"#FF9500":"#2a2a3a"}`,borderRadius:"8px",
-                      color:active?"#000":"#888",fontSize:"11px",fontWeight:"900",
-                      cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"1px"}}>
-                    {label}
-                  </button>
-                );
+              {[["week","WEEK"],["month","MONTH"],["alltime","ALL TIME"]].map(function(pair){
+                var active=chartScale===pair[0];
+                return <button key={pair[0]} onClick={()=>setChartScale(pair[0])}
+                  style={{flex:1,padding:"7px 4px",background:active?"#00E5FF":"transparent",
+                    border:`1px solid ${active?"#00E5FF":"#2a2a3a"}`,borderRadius:"8px",
+                    color:active?"#000":"#888",fontSize:"11px",fontWeight:"900",
+                    cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"1px"}}>{pair[1]}</button>;
               })}
             </div>
-            {chartScale==="week" && (
-              <BarChart
-                data={last7}
-                height={80}
-                valueFn={function(d){return d.reps;}}
-                labelFn={function(d){return formatDate(d.date);}}
-                colorFn={function(d){return d.date===today?"#FF9500":"#FF950066";}}
-                stacked={true}
-              />
-            )}
-            {chartScale==="month" && (
-              <BarChart
-                data={getLast30Days().map(function(d) {
-                  var entry = logs[d] || {};
-                  return {
-                    date: d,
-                    reps: GRIPS.reduce(function(a,g){return a+(entry[g.id]||0);},0),
-                    grips: {narrow:entry.narrow||0,wide:entry.wide||0,neutral:entry.neutral||0,chin:entry.chin||0},
-                  };
-                })}
-                height={80}
-                valueFn={function(d){return d.reps;}}
-                labelFn={function(d){return formatDate(d.date);}}
-                colorFn={function(d){return d.date===today?"#FF9500":"#FF950066";}}
-                stacked={true}
-                labelEvery={5}
-              />
-            )}
-            {chartScale==="alltime" && (
-              <BarChart
-                data={allTimeWeeks}
-                height={80}
-                valueFn={function(d){return d.reps;}}
-                labelFn={function(d){
-                  var dt=new Date(d.weekStart);
-                  return (dt.getDate())+"/"+(dt.getMonth()+1);
-                }}
-                colorFn={function(d){return getWeekStart(today)===d.weekStart?"#FF9500":"#FF950066";}}
-                goal={weekGoal}
-                labelEvery={allTimeWeeks.length>16?4:allTimeWeeks.length>8?2:1}
-              />
-            )}
+            {chartScale==="week" && <BarChart data={last7} height={80} valueFn={d=>d.reps}
+              labelFn={d=>formatDate(d.date)} colorFn={d=>d.date===today?"#00E5FF":"#00E5FF66"} stacked={true} types={GRIPS}/>}
+            {chartScale==="month" && <BarChart
+              data={getLast30Days().map(d=>{var e=logs[d]||{};return{date:d,reps:GRIPS.reduce((a,g)=>a+(e[g.id]||0),0),grips:{narrow:e.narrow||0,wide:e.wide||0,neutral:e.neutral||0,chin:e.chin||0}};})}
+              height={80} valueFn={d=>d.reps} labelFn={d=>formatDate(d.date)}
+              colorFn={d=>d.date===today?"#00E5FF":"#00E5FF66"} stacked={true} labelEvery={5} types={GRIPS}/>}
+            {chartScale==="alltime" && <BarChart data={allTimeWeeks} height={80} valueFn={d=>d.reps}
+              labelFn={d=>{var dt=new Date(d.weekStart);return dt.getDate()+"/"+(dt.getMonth()+1);}}
+              colorFn={d=>getWeekStart(today)===d.weekStart?"#00E5FF":"#00E5FF66"}
+              goal={weekGoal} labelEvery={allTimeWeeks.length>16?4:allTimeWeeks.length>8?2:1}/>}
           </div>
-
-          {/* Grip all-time breakdown */}
           <div style={{background:"#0c0c1c",borderRadius:"14px",padding:"16px",border:"1px solid #1a1a2a",marginBottom:"16px"}}>
             <div style={{fontSize:"14px",color:"#ccc",letterSpacing:"3px",marginBottom:"14px"}}>ALL TIME BY GRIP</div>
             {GRIPS.map(g=>{
-              const r = Object.values(logs).reduce((a,v)=>a+(v[g.id]||0),0);
-              const pct = allReps>0?r/allReps:0;
-              const t = r*bodyweight;
+              const r=Object.values(logs).reduce((a,v)=>a+(v[g.id]||0),0), pct=allReps>0?r/allReps:0;
               return (
-                <div key={g.id} style={{marginBottom:"14px"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:"5px"}}>
-                    <div>
-                      <span style={{fontSize:"14px",fontWeight:"700",color:r>0?g.color:"#ccc"}}>{g.label}</span>
-                      <span style={{fontSize:"14px",color:"#bbb",marginLeft:"8px"}}>{g.sub}</span>
-                    </div>
-                    <div style={{textAlign:"right"}}>
-                      <div style={{fontSize:"14px",color:r>0?g.color:"#bbb",fontWeight:"900"}}>{r} reps</div>
-                      <div style={{fontSize:"15px",color:"#ccc"}}>{t.toLocaleString()} kg</div>
-                    </div>
+                <div key={g.id} style={{marginBottom:"12px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:"4px"}}>
+                    <div><span style={{fontSize:"13px",fontWeight:"700",color:r>0?g.color:"#ccc"}}>{g.label}</span>
+                      <span style={{fontSize:"12px",color:"#666",marginLeft:"8px"}}>{g.sub}</span></div>
+                    <div style={{fontSize:"13px",color:r>0?g.color:"#bbb",fontWeight:"900"}}>{r}</div>
                   </div>
-                  <div style={{height:"6px",background:"#1a1a2a",borderRadius:"3px",overflow:"hidden"}}>
-                    <div style={{width:`${pct*100}%`,height:"100%",background:g.color,
-                      borderRadius:"3px",transition:"width 0.5s"}}/>
+                  <div style={{height:"5px",background:"#1a1a2a",borderRadius:"3px",overflow:"hidden"}}>
+                    <div style={{width:`${pct*100}%`,height:"100%",background:g.color,borderRadius:"3px",transition:"width 0.5s"}}/>
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Energy equivalents fun facts */}
-          <div style={{background:"#0c0c1c",borderRadius:"14px",padding:"16px",border:"1px solid #1a1a2a"}}>
-            <div style={{fontSize:"14px",color:"#ccc",letterSpacing:"3px",marginBottom:"14px"}}>ENERGY EQUIVALENTS</div>
+          {/* ── PUSH STATS ── */}
+          <div style={{fontSize:"14px",letterSpacing:"5px",color:"#aaa",marginBottom:"6px",marginTop:"8px"}}>PUSHUPS</div>
+          <div style={{fontSize:"24px",fontFamily:"Georgia,serif",fontWeight:"900",color:"#FF6B6B",marginBottom:"16px"}}>All Time</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginBottom:"16px"}}>
             {[
-              {label:"Boil 1L of water",        metabolicJ:857000, emoji:"☕", note:"150kJ electrical ÷ 25% efficiency"},
-              {label:"iPhone full charge",       metabolicJ:280000, emoji:"📱", note:"14Wh battery ÷ 25% muscle eff."},
-              {label:"LED bulb for 1 hour",      metabolicJ:206000, emoji:"💡", note:"10W × 3600s ÷ 25% efficiency"},
-              {label:"Burn a Mars bar",          metabolicJ:1046000,emoji:"🍫", note:"250 kcal × 4184 J/kcal"},
-            ].map(e=>{
-              const repsNeeded = Math.round(e.metabolicJ / metabolicJPerRep);
+              {label:"TOTAL REPS",val:pushAllReps.toLocaleString(),              color:"#FF6B6B"},
+              {label:"TONNAGE",   val:`${(pushAllTonnage/1000).toFixed(1)}t`,    color:"#FBBF24"},
+              {label:"ENERGY",    val:`${Math.round(pushAllJoules/1000)} kJ`,    color:"#A78BFA"},
+              {label:"KCAL",      val:`${Math.round(pushAllKcal)}`,              color:"#FF6B6B"},
+            ].map(s=>(
+              <div key={s.label} style={{background:"#0c0c1c",borderRadius:"12px",padding:"16px",
+                border:`1px solid ${s.color}22`,textAlign:"center"}}>
+                <div style={{fontSize:"24px",fontWeight:"900",color:s.color,lineHeight:1}}>{s.val}</div>
+                <div style={{fontSize:"11px",color:"#ccc",letterSpacing:"1px",marginTop:"6px"}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:"#0c0c1c",borderRadius:"14px",padding:"16px",border:"1px solid #1a1a2a",marginBottom:"16px"}}>
+            <div style={{display:"flex",gap:"6px",marginBottom:"14px"}}>
+              {[["week","WEEK"],["month","MONTH"],["alltime","ALL TIME"]].map(function(pair){
+                var active=pushChartScale===pair[0];
+                return <button key={pair[0]} onClick={()=>setPushChartScale(pair[0])}
+                  style={{flex:1,padding:"7px 4px",background:active?"#FF6B6B":"transparent",
+                    border:`1px solid ${active?"#FF6B6B":"#2a2a3a"}`,borderRadius:"8px",
+                    color:active?"#000":"#888",fontSize:"11px",fontWeight:"900",
+                    cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"1px"}}>{pair[1]}</button>;
+              })}
+            </div>
+            {pushChartScale==="week" && <BarChart data={pushLast7} height={80} valueFn={d=>d.reps}
+              labelFn={d=>formatDate(d.date)} colorFn={d=>d.date===today?"#FF6B6B":"#FF6B6B66"} stacked={true} types={PUSH_TYPES}/>}
+            {pushChartScale==="month" && <BarChart
+              data={getLast30Days().map(d=>{var e=pushLogs[d]||{};return{date:d,reps:PUSH_TYPES.reduce((a,g)=>a+(e[g.id]||0),0),grips:{wide:e.wide||0,standard:e.standard||0,diamond:e.diamond||0}};})}
+              height={80} valueFn={d=>d.reps} labelFn={d=>formatDate(d.date)}
+              colorFn={d=>d.date===today?"#FF6B6B":"#FF6B6B66"} stacked={true} labelEvery={5} types={PUSH_TYPES}/>}
+            {pushChartScale==="alltime" && <BarChart data={pushAllTimeWeeks} height={80} valueFn={d=>d.reps}
+              labelFn={d=>{var dt=new Date(d.weekStart);return dt.getDate()+"/"+(dt.getMonth()+1);}}
+              colorFn={d=>getWeekStart(today)===d.weekStart?"#FF6B6B":"#FF6B6B66"}
+              goal={pushGoal} labelEvery={pushAllTimeWeeks.length>16?4:pushAllTimeWeeks.length>8?2:1}/>}
+          </div>
+          <div style={{background:"#0c0c1c",borderRadius:"14px",padding:"16px",border:"1px solid #1a1a2a",marginBottom:"16px"}}>
+            <div style={{fontSize:"14px",color:"#ccc",letterSpacing:"3px",marginBottom:"14px"}}>ALL TIME BY TYPE</div>
+            {PUSH_TYPES.map(g=>{
+              const r=Object.values(pushLogs).reduce((a,v)=>a+(v[g.id]||0),0), pct=pushAllReps>0?r/pushAllReps:0;
               return (
-                <div key={e.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-                  padding:"9px 0",borderBottom:"1px solid #111"}}>
-                  <div style={{fontSize:"14px",color:"#ccc"}}>{e.emoji} {e.label}</div>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:"14px",fontWeight:"900",color:"#00E5FF"}}>{repsNeeded} reps</div>
-                    <div style={{fontSize:"13px",color:"#ccc"}}>{e.note}</div>
+                <div key={g.id} style={{marginBottom:"12px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:"4px"}}>
+                    <div><span style={{fontSize:"13px",fontWeight:"700",color:r>0?g.color:"#ccc"}}>{g.label}</span>
+                      <span style={{fontSize:"12px",color:"#666",marginLeft:"8px"}}>{g.sub}</span></div>
+                    <div style={{fontSize:"13px",color:r>0?g.color:"#bbb",fontWeight:"900"}}>{r}</div>
+                  </div>
+                  <div style={{height:"5px",background:"#1a1a2a",borderRadius:"3px",overflow:"hidden"}}>
+                    <div style={{width:`${pct*100}%`,height:"100%",background:g.color,borderRadius:"3px",transition:"width 0.5s"}}/>
                   </div>
                 </div>
               );
             })}
-            <div style={{fontSize:"14px",color:"#ccc",marginTop:"12px",lineHeight:"1.6"}}>
-              Your {allReps} lifetime reps = {Math.round(allJoules/1000)} kJ mechanical energy.
-              Metabolically that's {Math.round(allKcal)} kcal — enough to {allKcal>300?"run about "+Math.round(allKcal/60)+"km":"make a decent dent in a snack"}.
+          </div>
+
+          {/* Energy equivalents */}
+          <div style={{background:"#0c0c1c",borderRadius:"14px",padding:"16px",border:"1px solid #1a1a2a"}}>
+            <div style={{fontSize:"14px",color:"#ccc",letterSpacing:"3px",marginBottom:"14px"}}>ENERGY EQUIVALENTS</div>
+            {[
+              {label:"Boil 1L of water",   metabolicJ:857000, emoji:"☕", note:"150kJ ÷ 25% efficiency"},
+              {label:"iPhone full charge",  metabolicJ:280000, emoji:"📱", note:"14Wh ÷ 25% efficiency"},
+              {label:"LED bulb for 1 hour", metabolicJ:206000, emoji:"💡", note:"10W × 3600s ÷ 25%"},
+              {label:"Burn a Mars bar",     metabolicJ:1046000,emoji:"🍫", note:"250 kcal × 4184 J/kcal"},
+            ].map(e=>{
+              const repsNeeded=Math.round(e.metabolicJ/metabolicJPerRep);
+              return (
+                <div key={e.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                  padding:"9px 0",borderBottom:"1px solid #111"}}>
+                  <div style={{fontSize:"13px",color:"#ccc"}}>{e.emoji} {e.label}</div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:"13px",fontWeight:"900",color:"#00E5FF"}}>{repsNeeded} pulls</div>
+                    <div style={{fontSize:"11px",color:"#555"}}>{e.note}</div>
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{fontSize:"12px",color:"#666",marginTop:"12px",lineHeight:"1.6"}}>
+              {allReps} lifetime pulls + {pushAllReps} pushups = {Math.round((allJoules+pushAllJoules)/1000)} kJ total mechanical work.
             </div>
           </div>
         </div>
@@ -837,59 +899,65 @@ function App() {
       {nav==="history" && (
         <div style={{padding:"22px 16px 88px"}}>
           <div style={{fontSize:"14px",letterSpacing:"5px",color:"#aaa",marginBottom:"6px"}}>HISTORY</div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"20px"}}>
-            <div style={{fontSize:"24px",fontFamily:"Georgia,serif",fontWeight:"900",color:"#BF5FFF"}}>
-              Rep Log
-            </div>
+          <div style={{fontSize:"24px",fontFamily:"Georgia,serif",fontWeight:"900",color:"#BF5FFF",marginBottom:"20px"}}>Rep Log</div>
 
-          </div>
-
-          {historyDates.length === 0 && (
+          {historyDates.length===0 && (
             <div style={{textAlign:"center",padding:"40px 20px",color:"#ccc",fontSize:"14px",lineHeight:"1.8"}}>
-              No reps logged yet.<br/>Hit LOG REPS on the Today tab.
+              No reps logged yet.<br/>Log reps on the Today tab.
             </div>
           )}
 
           {historyDates.map(date=>{
-            const entry = logs[date];
-            const total = GRIPS.reduce((a,g)=>a+(entry[g.id]||0),0);
-            const tonnage = total*bodyweight;
-            const kj = Math.round(total*bodyweight*9.81*0.5/1000);
+            const pullEntry = logs[date];
+            const pushEntry = pushLogs[date];
+            const pullTotal = pullEntry ? GRIPS.reduce((a,g)=>a+(pullEntry[g.id]||0),0) : 0;
+            const pushTotal = pushEntry ? PUSH_TYPES.reduce((a,g)=>a+(pushEntry[g.id]||0),0) : 0;
+            const tonnage = (pullTotal+pushTotal)*bodyweight;
             return (
               <div key={date} style={{background:"#0c0c1c",borderRadius:"12px",padding:"14px",
                 border:"1px solid #1a1a2a",marginBottom:"10px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"10px"}}>
                   <div>
                     <div style={{fontSize:"14px",fontWeight:"700",color:"#f0f0f0"}}>{formatDate(date)}</div>
-                    <div style={{fontSize:"14px",color:"#ccc",marginTop:"2px"}}>
-                      {tonnage.toLocaleString()} kg · {kj} kJ
-                    </div>
+                    <div style={{fontSize:"12px",color:"#666",marginTop:"2px"}}>{tonnage.toLocaleString()} kg total</div>
                   </div>
-                  <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
-                    <div style={{fontSize:"22px",fontWeight:"900",color:"#00E5FF"}}>{total}</div>
-                    <div style={{fontSize:"15px",color:"#ccc"}}>reps</div>
-                    <button onClick={()=>setEditDate(date)}
+                  <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
+                    {pullTotal>0 && <div style={{fontSize:"18px",fontWeight:"900",color:"#00E5FF"}}>{pullTotal}<span style={{fontSize:"11px",color:"#555",marginLeft:"2px"}}>↑</span></div>}
+                    {pushTotal>0 && <div style={{fontSize:"18px",fontWeight:"900",color:"#FF6B6B"}}>{pushTotal}<span style={{fontSize:"11px",color:"#555",marginLeft:"2px"}}>↓</span></div>}
+                    {pullEntry && <button onClick={()=>setEditDate(date)}
+                      style={{background:"none",border:"none",cursor:"pointer",padding:"4px",color:"#00E5FF88"}}>
+                      <Icon name="edit" size={15}/>
+                    </button>}
+                    {pushEntry && <button onClick={()=>setEditPushDate(date)}
+                      style={{background:"none",border:"none",cursor:"pointer",padding:"4px",color:"#FF6B6B88"}}>
+                      <Icon name="edit" size={15}/>
+                    </button>}
+                    <button onClick={()=>{ if(window.confirm("Delete all entries for this day?")){ if(pullEntry)deleteLog(date); if(pushEntry)deletePushLog(date); }}}
                       style={{background:"none",border:"none",cursor:"pointer",padding:"4px",color:"#bbb"}}>
-                      <Icon name="edit" size={16}/>
-                    </button>
-                    <button onClick={()=>{ if(window.confirm("Delete this entry?")) deleteLog(date); }}
-                      style={{background:"none",border:"none",cursor:"pointer",padding:"4px",color:"#bbb"}}>
-                      <Icon name="trash" size={16}/>
+                      <Icon name="trash" size={15}/>
                     </button>
                   </div>
                 </div>
-                <div style={{display:"flex",gap:"6px"}}>
-                  {GRIPS.map(g=>{
-                    const r=entry[g.id]||0;
-                    return r>0?(
-                      <div key={g.id} style={{padding:"4px 8px",background:g.color+"18",
-                        borderRadius:"6px",border:`1px solid ${g.color}33`}}>
-                        <span style={{fontSize:"14px",fontWeight:"900",color:g.color}}>{r}</span>
-                        <span style={{fontSize:"15px",color:g.color+"88",marginLeft:"4px"}}>{g.label}</span>
+                {pullEntry && pullTotal>0 && (
+                  <div style={{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:pushEntry&&pushTotal>0?"6px":"0"}}>
+                    {GRIPS.map(g=>{const r=pullEntry[g.id]||0; return r>0?(
+                      <div key={g.id} style={{padding:"3px 7px",background:g.color+"18",borderRadius:"6px",border:`1px solid ${g.color}33`}}>
+                        <span style={{fontSize:"13px",fontWeight:"900",color:g.color}}>{r}</span>
+                        <span style={{fontSize:"11px",color:g.color+"88",marginLeft:"3px"}}>{g.label}</span>
                       </div>
-                    ):null;
-                  })}
-                </div>
+                    ):null;})}
+                  </div>
+                )}
+                {pushEntry && pushTotal>0 && (
+                  <div style={{display:"flex",gap:"5px",flexWrap:"wrap"}}>
+                    {PUSH_TYPES.map(g=>{const r=pushEntry[g.id]||0; return r>0?(
+                      <div key={g.id} style={{padding:"3px 7px",background:g.color+"18",borderRadius:"6px",border:`1px solid ${g.color}33`}}>
+                        <span style={{fontSize:"13px",fontWeight:"900",color:g.color}}>{r}</span>
+                        <span style={{fontSize:"11px",color:g.color+"88",marginLeft:"3px"}}>{g.label}</span>
+                      </div>
+                    ):null;})}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -916,21 +984,23 @@ function App() {
       </div>
 
       {editDate && (
-        <EditLogModal
-          date={editDate}
+        <EditLogModal date={editDate} types={GRIPS} accentColor="#BF5FFF"
           existing={logs[editDate]||{narrow:0,wide:0,neutral:0,chin:0}}
           onClose={()=>setEditDate(null)}
-          onSave={(reps)=>{ setLogs(prev=>({...prev,[editDate]:reps})); setEditDate(null); }}
-          onDelete={()=>{ setLogs(prev=>{const n={...prev};delete n[editDate];return n;}); setEditDate(null); }}
-        />
+          onSave={(reps)=>{setLogs(prev=>({...prev,[editDate]:reps}));setEditDate(null);}}
+          onDelete={()=>{deleteLog(editDate);setEditDate(null);}}/>
+      )}
+      {editPushDate && (
+        <EditLogModal date={editPushDate} types={PUSH_TYPES} accentColor="#FF6B6B"
+          existing={pushLogs[editPushDate]||{wide:0,standard:0,diamond:0}}
+          onClose={()=>setEditPushDate(null)}
+          onSave={(reps)=>{setPushLogs(prev=>({...prev,[editPushDate]:reps}));setEditPushDate(null);}}
+          onDelete={()=>{deletePushLog(editPushDate);setEditPushDate(null);}}/>
       )}
       {showGoal && (
-        <GoalModal
-          currentGoal={weekGoal}
-          currentWeight={bodyweight}
+        <GoalModal currentGoal={weekGoal} currentPushGoal={pushGoal} currentWeight={bodyweight}
           onClose={()=>setShowGoal(false)}
-          onSave={function(g,w){setWeekGoal(g);setBodyweight(w);BODYWEIGHT_KG=w;setShowGoal(false);}}
-        />
+          onSave={function(g,pg,w){setWeekGoal(g);setPushGoal(pg);setBodyweight(w);BODYWEIGHT_KG=w;setShowGoal(false);}}/>
       )}
     </div>
   );
