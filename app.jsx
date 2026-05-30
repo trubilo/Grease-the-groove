@@ -21,10 +21,11 @@ const GRIPS = [
   { id: "chin",    label: "Chin-up", sub: "supinated · close handles",  color: "#FF4081" },
 ];
 
+// bwFraction: % of bodyweight lifted (Gouvali & Boudolos 2005); rom: vertical displacement (m)
 const PUSH_TYPES = [
-  { id: "wide",     label: "Wide",     sub: "hands wide · chest focus",  color: "#FF6B6B" },
-  { id: "standard", label: "Standard", sub: "shoulder-width · balanced", color: "#FBBF24" },
-  { id: "diamond",  label: "Diamond",  sub: "hands close · triceps",     color: "#A78BFA" },
+  { id: "wide",     label: "Wide",     sub: "hands wide · chest focus",  color: "#FF6B6B", bwFraction: 0.70, rom: 0.25 },
+  { id: "standard", label: "Standard", sub: "shoulder-width · balanced", color: "#FBBF24", bwFraction: 0.69, rom: 0.25 },
+  { id: "diamond",  label: "Diamond",  sub: "hands close · triceps",     color: "#A78BFA", bwFraction: 0.75, rom: 0.25 },
 ];
 
 const WEEK_GOAL_START = 100;
@@ -99,6 +100,14 @@ function getLast30Days() {
     days.push(localDateStr(d));
   }
   return days;
+}
+
+// Push joules for a single log entry (object with wide/standard/diamond counts)
+// Each type uses its own bwFraction and rom; bodyweightKg is the user's bodyweight
+function pushJoulesForEntry(entry, bodyweightKg) {
+  return PUSH_TYPES.reduce(function(sum, t) {
+    return sum + (entry[t.id] || 0) * bodyweightKg * t.bwFraction * 9.81 * t.rom;
+  }, 0);
 }
 
 function loadStorage() { try { const r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):null; } catch{return null;} }
@@ -476,9 +485,15 @@ function App() {
   const pushAllReps = useMemo(()=>
     Object.values(pushLogs).reduce((a,v)=>a+PUSH_TYPES.reduce((b,g)=>b+(v[g.id]||0),0),0)
   ,[pushLogs]);
-  const pushAllTonnage = pushAllReps * bodyweight;
-  const pushAllJoules  = pushAllReps * joulesPerRep;
-  const pushAllKcal    = pushAllReps * kcalPerRep;
+  // Tonnage = effective weight moved per type (bwFraction × bodyweight × reps)
+  const pushAllTonnage = useMemo(()=>
+    Object.values(pushLogs).reduce((a,v)=>a+PUSH_TYPES.reduce((b,t)=>b+(v[t.id]||0)*bodyweight*t.bwFraction,0),0)
+  ,[pushLogs,bodyweight]);
+  // Energy: per-type bwFraction and rom (not identical to pull-up formula)
+  const pushAllJoules = useMemo(()=>
+    Object.values(pushLogs).reduce((a,v)=>a+pushJoulesForEntry(v,bodyweight),0)
+  ,[pushLogs,bodyweight]);
+  const pushAllKcal = pushAllJoules / 0.25 / 4184;
 
   // ── Pull chart data ──
   const last7 = getLast7Days().map(function(d) {
@@ -912,7 +927,8 @@ function App() {
             const pushEntry = pushLogs[date];
             const pullTotal = pullEntry ? GRIPS.reduce((a,g)=>a+(pullEntry[g.id]||0),0) : 0;
             const pushTotal = pushEntry ? PUSH_TYPES.reduce((a,g)=>a+(pushEntry[g.id]||0),0) : 0;
-            const tonnage = (pullTotal+pushTotal)*bodyweight;
+            const pushTonnage = pushEntry ? PUSH_TYPES.reduce((a,t)=>a+(pushEntry[t.id]||0)*bodyweight*t.bwFraction,0) : 0;
+            const tonnage = pullTotal*bodyweight + pushTonnage;
             return (
               <div key={date} style={{background:"#0c0c1c",borderRadius:"12px",padding:"14px",
                 border:"1px solid #1a1a2a",marginBottom:"10px"}}>
