@@ -1096,6 +1096,7 @@ function App() {
   // Draft: unsaved inline edits for today
   const [draft, setDraft] = useState(null); // null = not editing, obj = {narrow,wide,neutral,chin}
   const isDirty = draft !== null;
+  const initialized = React.useRef(false);
   useEffect(() => {
     const s = loadStorage();
     if (s) {
@@ -1106,8 +1107,10 @@ function App() {
         BODYWEIGHT_KG = s.bodyweight;
       }
     }
+    initialized.current = true;
   }, []);
   useEffect(() => {
+    if (!initialized.current) return;
     saveStorage({
       logs,
       weekGoal,
@@ -2348,6 +2351,7 @@ function App() {
     }
   }));
 }
+
 function exportData() {
   try {
     const raw = localStorage.getItem("gtg_pull_v1");
@@ -2360,6 +2364,7 @@ function exportData() {
     document.body.removeChild(a); URL.revokeObjectURL(url);
   } catch(e) { alert("Export failed: "+e.message); }
 }
+
 function importData(file, onDone) {
   const reader = new FileReader();
   reader.onload = function(e) {
@@ -2372,8 +2377,10 @@ function importData(file, onDone) {
   };
   reader.readAsText(file);
 }
+
 window.gtgExport = exportData;
 window.gtgImport = importData;
+
 try {
   ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App, null));
 } catch(e) {
